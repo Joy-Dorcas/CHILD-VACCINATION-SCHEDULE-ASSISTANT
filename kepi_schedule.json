@@ -1,0 +1,39 @@
+{
+    "BCG": [
+        "0 weeks"
+    ],
+    "OPV": [
+        "0 weeks",
+        "6 weeks",
+        "10 weeks",
+        "14 weeks"
+    ],
+    "Rotavirus": [
+        "6 weeks",
+        "10 weeks"
+    ],
+    "Pneumo_conj": [
+        "6 weeks",
+        "10 weeks",
+        "14 weeks"
+    ],
+    "DTwPHibHepB": [
+        "6 weeks",
+        "10 weeks",
+        "14 weeks"
+    ],
+    "IPV": [
+        "14 weeks"
+    ],
+    "Yellow Fever": [
+        "9 months"
+    ],
+    "Measles": [
+        "9 months",
+        "18 months"
+    ],
+    "HPV": [
+        "10 years",
+        "10 years 6 months"
+    ]
+}

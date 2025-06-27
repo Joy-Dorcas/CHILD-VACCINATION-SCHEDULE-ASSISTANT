@@ -1,0 +1,12 @@
+[
+    {
+        "vaccine": "BCG",
+        "importance": "Protects against serious childhood TB.",
+        "reactions": "\ud83d\udfe2 Sore at injection site\n\ud83d\udfe2 Mild fever\n\ud83d\udfe2 Small scar may form"
+    },
+    {
+        "vaccine": "OPV",
+        "importance": "Prevents polio, which can cause paralysis.",
+        "reactions": "\ud83d\udfe2 Mild diarrhea\n\ud83d\udd34 Rare: vaccine-linked polio"
+    }
+]
