@@ -1,0 +1,145 @@
+
+{
+  "BCG": {
+    "Scheduled Age": "At birth (0 weeks)",
+    "Protects Against": "Severe forms of tuberculosis (TB), especially TB meningitis and miliary TB in children",
+    "Type": "Live attenuated vaccine",
+    "Route": "Intradermal injection (usually left upper arm)",
+    "Common Side Effects": [
+      "Local ulcer at the injection site (healing within weeks)",
+      "Swollen lymph nodes"
+    ],
+    "Special Considerations": [
+      "Scar formation is common and expected",
+      "Not given to infants with symptomatic HIV infection"
+    ]
+  },
+  "OPV": {
+    "Scheduled Age": "0 weeks, 6 weeks, 10 weeks, 14 weeks",
+    "Protects Against": "Poliomyelitis (polio)",
+    "Type": "Live attenuated oral vaccine",
+    "Route": "Oral drops",
+    "Common Side Effects": [
+      "Usually none",
+      "Rarely mild fever or diarrhea"
+    ],
+    "Special Considerations": [
+      "Part of global eradication efforts",
+      "Contraindicated in immunocompromised children and household contacts",
+      "May be replaced with IPV in some regions due to vaccine-derived polio risk"
+    ]
+  },
+  "Rotavirus": {
+    "Scheduled Age": "6 weeks, 10 weeks",
+    "Protects Against": "Severe rotavirus diarrhea, especially in infants and young children",
+    "Type": "Live attenuated oral vaccine",
+    "Route": "Oral drops",
+    "Common Side Effects": [
+      "Mild, temporary diarrhea or irritability",
+      "Very rare risk of intussusception (bowel obstruction)"
+    ],
+    "Special Considerations": [
+      "Must be given before 8 months of age",
+      "Do not re-administer if the baby spits it out or vomits after the dose"
+    ]
+  },
+  "Pneumo_conj": {
+    "Scheduled Age": "6 weeks, 10 weeks, 14 weeks",
+    "Protects Against": "Invasive pneumococcal diseases such as meningitis, pneumonia, and sepsis",
+    "Type": "Inactivated conjugate vaccine",
+    "Route": "Intramuscular injection (thigh or upper arm)",
+    "Common Side Effects": [
+      "Mild fever",
+      "Redness or swelling at injection site",
+      "Fussiness or drowsiness"
+    ],
+    "Special Considerations": [
+      "Very important for children under 2 years",
+      "Some countries use a booster dose later (e.g. 9 months or 12 months)"
+    ]
+  },
+  "DTwPHibHepB": {
+    "Scheduled Age": "6 weeks, 10 weeks, 14 weeks",
+    "Protects Against": [
+      "Diphtheria",
+      "Tetanus",
+      "Pertussis (whooping cough)",
+      "Haemophilus influenzae type b (Hib)",
+      "Hepatitis B"
+    ],
+    "Type": "Inactivated combination vaccine",
+    "Route": "Intramuscular injection",
+    "Common Side Effects": [
+      "Fever",
+      "Pain, redness, or swelling at injection site",
+      "Irritability or drowsiness"
+    ],
+    "Special Considerations": [
+      "Replaces the need for separate doses of HepB, Hib, DTP",
+      "Fever may be more pronounced due to whole-cell pertussis"
+    ]
+  },
+  "IPV": {
+    "Scheduled Age": "14 weeks",
+    "Protects Against": "Poliomyelitis (polio)",
+    "Type": "Inactivated (killed) vaccine",
+    "Route": "Intramuscular or subcutaneous injection",
+    "Common Side Effects": [
+      "Soreness at the injection site",
+      "Mild fever"
+    ],
+    "Special Considerations": [
+      "Used in combination with OPV for greater protection",
+      "Does not carry a risk of vaccine-derived polio"
+    ]
+  },
+  "Yellow Fever": {
+    "Scheduled Age": "9 months",
+    "Protects Against": "Yellow fever virus (transmitted by mosquitoes)",
+    "Type": "Live attenuated vaccine",
+    "Route": "Subcutaneous injection",
+    "Common Side Effects": [
+      "Mild fever",
+      "Headache",
+      "Muscle aches"
+    ],
+    "Special Considerations": [
+      "Required for travel to or from certain countries (international certificate)",
+      "Lifelong immunity for most individuals",
+      "Not given to immunocompromised children"
+    ]
+  },
+  "Measles": {
+    "Scheduled Age": "9 months, 18 months",
+    "Protects Against": "Measles (and Rubella/Mumps if combined)",
+    "Type": "Live attenuated vaccine",
+    "Route": "Subcutaneous injection",
+    "Common Side Effects": [
+      "Fever and mild rash 5–12 days after vaccination",
+      "Rare allergic reactions"
+    ],
+    "Special Considerations": [
+      "First dose provides ~85% protection; second dose boosts to >95%",
+      "Should be delayed in children with severe immunosuppression"
+    ]
+  },
+  "HPV": {
+    "Scheduled Age": "10 years, 10 years 6 months",
+    "Protects Against": [
+      "Cervical cancer",
+      "Other HPV-related cancers (anal, penile, throat)",
+      "Genital warts"
+    ],
+    "Type": "Recombinant vaccine (non-live)",
+    "Route": "Intramuscular injection (arm)",
+    "Common Side Effects": [
+      "Pain or swelling at the injection site",
+      "Dizziness or fainting"
+    ],
+    "Special Considerations": [
+      "Most effective when given before the onset of sexual activity",
+      "2-dose schedule for ages 9–14; 3-dose for 15 years and above"
+    ]
+  }
+}
+
