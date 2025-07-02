@@ -1,5 +1,6 @@
 # CHILD-VACCINATION-SCHEDULE-ASSISTANT
 A desktop assistant for tracking and managing childhood vaccinations using Python and Tkinter.
+<<<<<<< HEAD
 ## 📦 Features
 
 - ✅ Child Registration**
@@ -24,3 +25,5 @@ A desktop assistant for tracking and managing childhood vaccinations using Pytho
 - **fpdf** (PDF generation)
 - **Twilio** (SMS reminders)
 - **JSON** (for persistent data storage)
+=======
+>>>>>>> f70750e50649162a7831cc9c9e8f6bdd6d6979b6
