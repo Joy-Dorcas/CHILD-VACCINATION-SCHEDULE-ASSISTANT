@@ -1,4 +1,4 @@
-# Child Vaccination Assistant - Enhanced Streamlit App (Final + Fixed)
+# Child Vaccination Schedule Assistant 
 
 import streamlit as st
 import pandas as pd
@@ -11,6 +11,8 @@ from io import BytesIO
 import plotly.express as px
 from twilio.rest import Client
 import hashlib
+import base64
+import textwrap
 
 # ============================
 # Twilio Setup (Update credentials before deployment)
@@ -31,6 +33,9 @@ st.set_page_config(page_title="Child Vaccination Assistant", layout="wide")
 DB_FILE = 'members.db'
 
 def init_db():
+    import os
+    st.write("🔍 Using DB file:", os.path.abspath(DB_FILE))
+
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute('''
@@ -108,8 +113,20 @@ def check_pin():
     if st.session_state.authenticated:
         return True
 
-    st.sidebar.subheader("🔐 Secure Access")
+    # 🔐 Main screen introduction
+    st.title("🔐 Welcome to the Child Vaccination Assistant")
+    st.markdown("""
+    This secure platform is designed to help **healthcare providers** and **parents**:
+    - Register children for routine immunizations
+    - Track upcoming and completed vaccines
+    - Log post-vaccination side effects
+    - Learn more about each vaccine
 
+    👉 Please **log in** or **register** using your email and a 6-digit PIN to get started.
+    """)
+
+    # 🔒 Sidebar input
+    st.sidebar.subheader("Login or Register")
     auth_mode = st.sidebar.radio("Choose Action", ["Login", "Register"])
     email = st.sidebar.text_input("📧 Email")
     pin = st.sidebar.text_input("🔑 6-digit PIN", type="password")
@@ -150,6 +167,7 @@ def check_pin():
     conn.close()
     return False
 
+# 🔐 Stop page if not logged in
 if not check_pin():
     st.stop()
 
@@ -159,12 +177,14 @@ if not check_pin():
 menu = st.sidebar.radio("🌟 Navigate", [
     "🏠 Dashboard",
     "➕ Register Child",
-    "👥 View Members",
     "📚 Vaccine Info",
     "📆 Vaccination Status",
     "📝 Reaction Logs",
-    "🤖 Vaccine Assistant"
+    "🤖 Vaccine Assistant",
+    "👥 View Members",
+    "📤 Export Report"
 ])
+
 
 # ============================
 # Register Child
@@ -178,24 +198,49 @@ def register_member():
         residence = st.text_input("Residence / Village")
         phone = st.text_input("Guardian Phone Number")
         submit = st.form_submit_button("Register")
+
         if submit and name:
+            # ✅ Prefill all vaccines with False
+            default_vaccine_status = {}
+            for v, times in kepi_schedule.items():
+                for t in times:
+                    default_vaccine_status[f"{v} - {t}"] = False
+
             conn = sqlite3.connect(DB_FILE)
             c = conn.cursor()
-            c.execute("INSERT INTO members (name, dob, gender, residence, phone, vaccines) VALUES (?, ?, ?, ?, ?, ?)",
-                      (name, dob.isoformat(), gender, residence, phone, json.dumps({})))
+            c.execute(
+                "INSERT INTO members (name, dob, gender, residence, phone, vaccines) VALUES (?, ?, ?, ?, ?, ?)",
+                (name, dob.isoformat(), gender, residence, phone, json.dumps(default_vaccine_status))
+            )
             conn.commit()
             conn.close()
             st.success("✅ Registered Successfully!")
 
+
+# ============================
 # ============================
 # View Members
 # ============================
 def view_members():
     st.header("👥 All Registered Members")
+
     conn = sqlite3.connect(DB_FILE)
     df = pd.read_sql_query("SELECT * FROM members", conn)
     conn.close()
+
+    if df.empty:
+        st.info("No registered members found.")
+        return
+
+    # Show formatted table
+    st.subheader("📋 Member Table")
     st.dataframe(df)
+
+    # Show raw vaccine JSON for debugging
+    st.subheader("🔬 Raw Vaccine JSON Data")
+    for _, row in df.iterrows():
+        st.write(f"{row['name']} - {row['vaccines']}")
+
 
 # ============================
 # Vaccine Info
@@ -230,7 +275,12 @@ def track_vaccines():
     selected = st.selectbox("Select Child", df["name"])
     row = df[df["name"] == selected].iloc[0]
     dob = datetime.strptime(row["dob"], "%Y-%m-%d")
-    vaccine_status = json.loads(row["vaccines"] or "{}")
+    try:
+        vaccine_status = json.loads(row["vaccines"] or "{}")
+    except json.JSONDecodeError:
+        st.error("❌ Could not decode vaccine data. Resetting to empty.")
+        vaccine_status = {}
+
     today = datetime.today().date()
 
     updated = {}
@@ -243,15 +293,32 @@ def track_vaccines():
             )
             key = f"{v} - {t}"
             taken_flag = vaccine_status.get(key, False)
-            updated[key] = st.checkbox(f"{v} ({t}) - Due {due.date()}", value=taken_flag)
+            updated[key] = st.checkbox(f"{v} ({t}) - Due {due.date()}", value=bool(taken_flag))
+
 
     if st.button("💾 Save Status"):
-        conn = sqlite3.connect(DB_FILE)
-        c = conn.cursor()
-        c.execute("UPDATE members SET vaccines=? WHERE id=?", (json.dumps(updated), row["id"]))
-        conn.commit()
-        conn.close()
-        st.success("✅ Status Updated")
+        st.write("Saving for:", selected)
+        st.write("Row ID:", row["id"])
+
+        # Merge new updates with existing data
+        merged_status = vaccine_status.copy()
+        merged_status.update(updated)
+
+        st.write("🧬 Merged Status JSON:")
+        st.json(merged_status)  # Debug: shows what you're saving
+
+        try:
+            conn = sqlite3.connect(DB_FILE)
+            c = conn.cursor()
+            c.execute("UPDATE members SET vaccines=? WHERE id=?", (json.dumps(merged_status), row["id"]))
+            conn.commit()
+            conn.close()
+            st.success("✅ Vaccination Status Updated & Saved")
+        except Exception as e:
+            st.error(f"❌ Failed to save data: {e}")
+
+
+
 
 # ============================
 # Reaction Logs
@@ -387,11 +454,21 @@ def vaccine_assistant():
                 st.write("⚠️ No special considerations.")
         else:
             st.warning("🤔 Sorry, I couldn't find info for that. Please try using the exact name like 'BCG', 'Measles', or 'HPV'.")
+
+
+
+
+
 # ============================
 # Dashboard
 # ============================
 def show_dashboard():
     st.title("📊 Dashboard Overview")
+    st.markdown("""
+    Welcome to the **Dashboard Overview** of the Child Vaccination Assistant.  
+    Here you can quickly monitor vaccination activity, see upcoming or overdue doses, and get a summary of all registered children.
+    """)
+
     conn = sqlite3.connect(DB_FILE)
     df = pd.read_sql_query("SELECT * FROM members", conn)
     conn.close()
@@ -429,14 +506,113 @@ def show_dashboard():
     col5.metric("⚠️ Overdue", overdue)
 
 # ============================
+# Export Vaccine Completion Report with Filters and PDF
+# ============================
+def export_vaccine_report():
+    st.header("📤 Export Completed Vaccines Report")
+
+    conn = sqlite3.connect(DB_FILE)
+    df = pd.read_sql_query("SELECT * FROM members", conn)
+    conn.close()
+
+    if df.empty:
+        st.warning("No registered members found.")
+        return
+
+    df["dob"] = pd.to_datetime(df["dob"])
+    df["age"] = df["dob"].apply(lambda x: (datetime.today().date() - x.date()).days // 365)
+
+    # === Filter Section ===
+    with st.expander("🔍 Filter Options", expanded=True):
+        residences = sorted(df["residence"].dropna().unique().tolist())
+        selected_residence = st.multiselect("Filter by Residence", residences)
+
+        dob_min, dob_max = st.date_input("Filter by Date of Birth Range", value=[df["dob"].min().date(), df["dob"].max().date()])
+
+        age_range = st.slider("Filter by Age (Years)", 0, 18, (0, 18))
+
+    # === Apply Filters ===
+    filtered_df = df.copy()
+
+    selected_names = st.multiselect("Filter by Child Name", options=df["name"].unique())
+
+    if selected_names:
+        filtered_df = filtered_df[filtered_df["name"].isin(selected_names)]
+
+    filtered_df = filtered_df[
+        (filtered_df["dob"].dt.date >= dob_min) &
+        (filtered_df["dob"].dt.date <= dob_max) &
+        (filtered_df["age"] >= age_range[0]) &
+        (filtered_df["age"] <= age_range[1])
+    ]
+
+    if filtered_df.empty:
+        st.warning("No members match the selected filters.")
+        return
+
+    # === Prepare Report Data ===
+    report_data = []
+
+    for _, row in filtered_df.iterrows():
+        name = row.get("name", "N/A")
+        dob = pd.to_datetime(row.get("dob", None)).date() if row.get("dob") else "Unknown"
+        residence = row.get("residence", "Unknown")
+
+        # Safely load vaccines JSON from DB
+        try:
+            vaccines = json.loads(row["vaccines"] or "{}")
+        except (json.JSONDecodeError, TypeError):
+            st.warning(f"⚠️ Skipping {name} due to invalid vaccine data.")
+            vaccines = {}
+
+        # Extract completed vaccines
+        completed = [key.split(" - ")[0] for key, val in vaccines.items() if str(val).lower() in ("true", "1", "yes")]
+        unique_completed = sorted(set(completed))
+
+        # Append row to report
+        report_data.append({
+            "Name": name,
+            "Date of Birth": str(dob),
+            "Residence": residence,
+            "Completed Vaccines": ", ".join(unique_completed) if unique_completed else "None"
+        })
+
+    # Convert to DataFrame
+    report_df = pd.DataFrame(report_data)
+    st.dataframe(report_df)
+
+    # === CSV Export ===
+    csv = report_df.to_csv(index=False).encode('utf-8')
+    st.download_button("📥 Download CSV", data=csv, file_name="completed_vaccines_report.csv", mime='text/csv')
+
+    # === PDF Export ===
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    pdf.cell(190, 10, txt="Completed Vaccines Report", ln=True, align='C')
+    pdf.ln(10)
+
+    for row in report_data:
+        line = f"{row['Name']} | DOB: {row['Date of Birth']} | Residence: {row['Residence']} | Completed: {row['Completed Vaccines']}"
+        wrapped_lines = textwrap.wrap(line, width=90)  # Wrap at 90 chars
+
+        for wrapped_line in wrapped_lines:
+            pdf.multi_cell(0, 10, wrapped_line, align='L')
+
+        pdf.ln(2)  # Add spacing between entries
+
+    buffer = BytesIO()
+    pdf.output(buffer)
+    buffer.seek(0)
+
+    st.download_button("📥 Download PDF", data=buffer.getvalue(), file_name="completed_vaccines_report.pdf", mime="application/pdf")
+# ============================
 # Route Pages
 # ============================
 if menu == "🏠 Dashboard":
     show_dashboard()
 elif menu == "➕ Register Child":
     register_member()
-elif menu == "👥 View Members":
-    view_members()
 elif menu == "📚 Vaccine Info":
     view_vaccine_info()
 elif menu == "📆 Vaccination Status":
@@ -445,304 +621,8 @@ elif menu == "📝 Reaction Logs":
     reaction_logs()
 elif menu == "🤖 Vaccine Assistant":
     vaccine_assistant()
-
-
-
-
-
-# Child Vaccination Schedule Assistant - Full Enhanced Version
-# Author: Joy Dorcas (with ChatGPT support)
-
-import tkinter as tk
-from tkinter import messagebox, filedialog
-from tkinter.scrolledtext import ScrolledText
-from tkcalendar import Calendar
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
-import json, os, uuid, csv
-from fpdf import FPDF
-from twilio.rest import Client
-
-# --- CONFIGURATION --- #
-DATA_FILE = "user_data.json"
-VACCINE_INFO_FILE = "vaccine_info.json"
-PIN_FILE = "user_pin.json"
-TWILIO_FILE = "twilio_config.json"
-
-# --- STATIC VACCINE DATA --- #
-vaccine_schedule = {
-    "BCG": ["0 weeks"],
-    "OPV": ["0 weeks", "6 weeks", "10 weeks", "14 weeks"],
-    "Rotavirus": ["6 weeks", "10 weeks"],
-    "Pneumo_conj": ["6 weeks", "10 weeks", "14 weeks"],
-    "DTwPHibHepB": ["6 weeks", "10 weeks", "14 weeks"],
-    "IPV": ["14 weeks"],
-    "Yellow Fever": ["9 months"],
-    "Measles": ["9 months", "18 months"],
-    "HPV": ["10 years", "10 years 6 months"],
-    "HepB_Adult": ["18 years"],
-    "TT": ["5 years"],
-    "Typhoid": ["2 years"]
-}
-
-vaccine_info = {
-    "BCG": {"importance": "Protects against severe forms of TB.", "reactions": "Swelling, mild fever, scar."},
-    "OPV": {"importance": "Prevents polio.", "reactions": "Mild diarrhea, rare vaccine-derived polio."},
-    "Rotavirus": {"importance": "Prevents rotavirus diarrhea.", "reactions": "Mild diarrhea, vomiting."},
-    "Pneumo_conj": {"importance": "Protects against pneumonia & meningitis.", "reactions": "Swelling, fever."},
-    "DTwPHibHepB": {"importance": "Combo vaccine for 5 diseases.", "reactions": "Fever, rash, swelling."},
-    "IPV": {"importance": "Inactivated polio vaccine.", "reactions": "Soreness, mild fever."},
-    "Yellow Fever": {"importance": "Prevents yellow fever.", "reactions": "Fever, aches, allergy."},
-    "Measles": {"importance": "Prevents measles.", "reactions": "Rash, fever, seizures (rare)."},
-    "HPV": {"importance": "Prevents cervical cancer.", "reactions": "Dizziness, swelling."},
-    "HepB_Adult": {"importance": "Protects liver from hepatitis B.", "reactions": "Tiredness, pain."},
-    "TT": {"importance": "Prevents tetanus.", "reactions": "Muscle soreness, fever."},
-    "Typhoid": {"importance": "Prevents typhoid.", "reactions": "Fever, headache."}
-}
-
-# --- LOAD/SAVE UTILITIES --- #
-def load_json(path, default):
-    if os.path.exists(path):
-        with open(path) as f:
-            return json.load(f)
-    else:
-        with open(path, 'w') as f:
-            json.dump(default, f, indent=4)
-        return default
-
-def save_json(path, data):
-    with open(path, 'w') as f:
-        json.dump(data, f, indent=4)
-
-def calculate_due(dob):
-    due = {}
-    for vac, times in vaccine_schedule.items():
-        due[vac] = []
-        for t in times:
-            num, unit = int(t.split()[0]), t.split()[1]
-            date = dob + (relativedelta(weeks=num) if 'week' in unit else
-                          relativedelta(months=num) if 'month' in unit else
-                          relativedelta(years=num))
-            due[vac].append(date.strftime("%Y-%m-%d"))
-    return due
-
-def send_sms(to, message):
-    creds = load_json(TWILIO_FILE, {"account_sid": "", "auth_token": "", "from_number": ""})
-    if not all(creds.values()):
-        messagebox.showerror("Twilio Error", "Twilio credentials not configured.")
-        return
-    try:
-        client = Client(creds['account_sid'], creds['auth_token'])
-        client.messages.create(body=message, from_=creds['from_number'], to=to)
-        messagebox.showinfo("Success", f"Reminder sent to {to}")
-    except Exception as e:
-        messagebox.showerror("SMS Failed", str(e))
-
-# --- GUI ROOT --- #
-root = tk.Tk()
-root.title("Vaccination Assistant")
-root.geometry("1024x700")
-canvas = tk.Canvas(root)
-scrollbar = tk.Scrollbar(root, orient="vertical", command=canvas.yview)
-frame = tk.Frame(canvas)
-frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-canvas.create_window((0, 0), window=frame, anchor="nw")
-canvas.configure(yscrollcommand=scrollbar.set)
-canvas.pack(side="left", fill="both", expand=True)
-scrollbar.pack(side="right", fill="y")
-
-user_data = load_json(DATA_FILE, {})
-pin_data = load_json(PIN_FILE, {})
-
-# --- PIN AUTH --- #
-def pin_auth():
-    login = tk.Toplevel()
-    login.title("PIN Authentication")
-    login.geometry("300x150")
-    login.grab_set()  # Focus on the PIN window
-    login.resizable(False, False)
-
-    tk.Label(login, text="Enter PIN:", font=("Arial", 12)).pack(pady=10)
-    pin_entry = tk.Entry(login, show="*", font=("Arial", 12), width=20, justify='center')
-    pin_entry.pack(pady=5)
-    pin_entry.focus_set()
-
-    def verify():
-        entered = pin_entry.get()
-        if 'pin' not in pin_data:
-            if len(entered) >= 4:
-                pin_data['pin'] = entered
-                save_json(PIN_FILE, pin_data)
-                login.destroy()
-                build_app()
-            else:
-                messagebox.showerror("Error", "PIN must be at least 4 digits.")
-        elif entered == pin_data['pin']:
-            login.destroy()
-            build_app()
-        else:
-            messagebox.showerror("Error", "Wrong PIN")
-
-    tk.Button(login, text="Continue", command=verify, width=10).pack(pady=10)
-
-
-# --- APP --- #
-def build_app():
-    entries = {}
-    form = tk.LabelFrame(frame, text="Register Child")
-    form.pack(fill="x", pady=5)
-    fields = ["Name", "Date of Birth (YYYY-MM-DD)", "Gender", "Weight", "Conditions", "Phone"]
-    for i, f in enumerate(fields):
-        tk.Label(form, text=f).grid(row=i, column=0)
-        entry = tk.Entry(form, width=40)
-        entry.grid(row=i, column=1)
-        entries[f] = entry
-
-    def register():
-        try:
-            dob = datetime.strptime(entries["Date of Birth (YYYY-MM-DD)"].get(), "%Y-%m-%d")
-        except:
-            messagebox.showerror("Error", "Invalid DOB format")
-            return
-        name = entries['Name'].get()
-        if any(child['name'] == name for child in user_data.values()):
-            messagebox.showinfo("Exists", "Child already registered")
-            return
-        cid = str(uuid.uuid4())
-        user_data[cid] = {
-            "name": name,
-            "dob": entries["Date of Birth (YYYY-MM-DD)"].get(),
-            "gender": entries["Gender"].get(),
-            "weight": entries["Weight"].get(),
-            "conditions": entries["Conditions"].get(),
-            "phone": entries["Phone"].get(),
-            "vaccines": calculate_due(dob),
-            "completed": {},
-            "reactions": {}
-        }
-        save_json(DATA_FILE, user_data)
-        messagebox.showinfo("Success", f"{name} registered successfully.")
-        display_dashboard(cid)
-
-    tk.Button(form, text="Register", command=register).grid(row=len(fields), column=1, pady=5)
-
-    def display_dashboard(cid):
-        child = user_data[cid]
-        dash = tk.LabelFrame(frame, text=f"Dashboard: {child['name']}")
-        dash.pack(fill="x", pady=5)
-
-        for vac, dates in child['vaccines'].items():
-            for d in dates:
-                color = "green" if vac in child['completed'] and d in child['completed'][vac] else (
-                         "orange" if datetime.strptime(d, "%Y-%m-%d") > datetime.today() else "red")
-                status = "✔" if color == "green" else "✘"
-                row = tk.Frame(dash)
-                row.pack(anchor="w")
-                tk.Label(row, text=f"{vac}: {d} - {status}", fg=color).pack(side="left")
-                tk.Button(row, text="Info", command=lambda v=vac: show_info(v)).pack(side="left")
-                tk.Button(row, text="✔", command=lambda v=vac, d=d: mark_complete(cid, v, d)).pack(side="left")
-                tk.Button(row, text="Reaction", command=lambda v=vac: reaction_log(cid, v)).pack(side="left")
-
-        tk.Button(dash, text="Export PDF", command=lambda: export_pdf(cid)).pack()
-        tk.Button(dash, text="Export CSV", command=lambda: export_csv(cid)).pack()
-        tk.Button(dash, text="Calendar", command=calendar_popup).pack()
-        tk.Button(dash, text="AI Assistant", command=chatbot).pack()
-        tk.Button(dash, text="Send SMS", command=lambda: send_sms(child['phone'], f"Upcoming vaccines for {child['name']}"))
-
-    def show_info(vac):
-        info = vaccine_info.get(vac, {})
-        messagebox.showinfo(f"{vac} Info", f"Importance: {info.get('importance')}\nReactions: {info.get('reactions')}")
-
-    def mark_complete(cid, vac, date):
-        user_data[cid]['completed'].setdefault(vac, []).append(date)
-        save_json(DATA_FILE, user_data)
-        messagebox.showinfo("Done", f"Marked {vac} as completed.")
-
-    def reaction_log(cid, vac):
-        win = tk.Toplevel()
-        win.title(f"Reaction to {vac}")
-        text = ScrolledText(win, width=40, height=5)
-        text.pack()
-        def save():
-            user_data[cid]['reactions'][vac] = text.get("1.0", "end").strip()
-            save_json(DATA_FILE, user_data)
-            messagebox.showinfo("Saved", "Reaction recorded. Call 0800-123-456 in emergency.")
-            win.destroy()
-        tk.Button(win, text="Save", command=save).pack(pady=5)
-
-    def export_pdf(cid):
-        try:
-            child = user_data[cid]
-            filename = f"{child['name'].replace(' ', '_')}_vaccines.pdf"
-            
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", size=12)
-            
-            pdf.cell(0, 10, txt=f"Vaccine Report for {child['name']}", ln=True, align="C")
-            pdf.ln(10)
-
-            # Table Header
-            pdf.set_font("Arial", "B", size=12)
-            pdf.cell(60, 10, "Vaccine", border=1)
-            pdf.cell(60, 10, "Date", border=1)
-            pdf.cell(60, 10, "Status", border=1)
-            pdf.ln()
-
-            # Table Body
-            pdf.set_font("Arial", size=11)
-            for vac, dates in child["vaccines"].items():
-                for d in dates:
-                    status = "Completed" if vac in child["completed"] and d in child["completed"][vac] else "Pending"
-                    pdf.cell(60, 10, vac, border=1)
-                    pdf.cell(60, 10, d, border=1)
-                    pdf.cell(60, 10, status, border=1)
-                    pdf.ln()
-
-            pdf.output(filename)
-            messagebox.showinfo("PDF Exported", f"File saved as:\n{filename}")
-        
-        except Exception as e:
-            messagebox.showerror("Export Error", f"Could not export PDF.\n\n{str(e)}")
-
-
-
-    def export_csv(cid):
-        child = user_data[cid]
-        with open(f"{child['name'].replace(' ', '_')}_vaccines.csv", "w", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow(["Vaccine", "Date", "Status"])
-            for vac, dates in child['vaccines'].items():
-                for d in dates:
-                    status = "Completed" if vac in child['completed'] and d in child['completed'][vac] else "Pending"
-                    writer.writerow([vac, d, status])
-
-    def calendar_popup():
-        top = tk.Toplevel()
-        top.title("Vaccine Calendar")
-        Calendar(top, selectmode='day').pack(pady=10)
-
-    def chatbot():
-        win = tk.Toplevel()
-        win.title("Vaccine AI Assistant")
-        tk.Label(win, text="Ask about a vaccine:").pack()
-        entry = tk.Entry(win, width=50)
-        entry.pack()
-        out = ScrolledText(win, height=10)
-        out.pack()
-        def reply():
-            query = entry.get().lower()
-            for v in vaccine_info:
-                if v.lower() in query:
-                    i = vaccine_info[v]['importance']
-                    r = vaccine_info[v]['reactions']
-                    out.insert("end", f"{v}:\nImportance: {i}\nReactions: {r}\n\n")
-                    return
-            out.insert("end", "Please ask about a valid vaccine.\n")
-        tk.Button(win, text="Ask", command=reply).pack(pady=5)
-
-pin_auth()
-root.mainloop()
-
-
+elif menu == "👥 View Members":
+    view_members()
+elif menu == "📤 Export Report":
+    export_vaccine_report()
 
