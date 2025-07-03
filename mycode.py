@@ -506,10 +506,10 @@ def show_dashboard():
     col5.metric("⚠️ Overdue", overdue)
 
 # ============================
-# Export Vaccine Completion Report with Filters and PDF
+# Export Individual Child Record as PDF
 # ============================
 def export_vaccine_report():
-    st.header("📤 Export Completed Vaccines Report")
+    st.header("📤 Export Individual Child Record (Full View)")
 
     conn = sqlite3.connect(DB_FILE)
     df = pd.read_sql_query("SELECT * FROM members", conn)
@@ -519,94 +519,67 @@ def export_vaccine_report():
         st.warning("No registered members found.")
         return
 
-    df["dob"] = pd.to_datetime(df["dob"])
-    df["age"] = df["dob"].apply(lambda x: (datetime.today().date() - x.date()).days // 365)
+    # Select child by name
+    selected_name = st.selectbox("Select a Child", options=df["name"].unique())
+    child = df[df["name"] == selected_name].iloc[0]
 
-    # === Filter Section ===
-    with st.expander("🔍 Filter Options", expanded=True):
-        residences = sorted(df["residence"].dropna().unique().tolist())
-        selected_residence = st.multiselect("Filter by Residence", residences)
-
-        dob_min, dob_max = st.date_input("Filter by Date of Birth Range", value=[df["dob"].min().date(), df["dob"].max().date()])
-
-        age_range = st.slider("Filter by Age (Years)", 0, 18, (0, 18))
-
-    # === Apply Filters ===
-    filtered_df = df.copy()
-
-    selected_names = st.multiselect("Filter by Child Name", options=df["name"].unique())
-
-    if selected_names:
-        filtered_df = filtered_df[filtered_df["name"].isin(selected_names)]
-
-    filtered_df = filtered_df[
-        (filtered_df["dob"].dt.date >= dob_min) &
-        (filtered_df["dob"].dt.date <= dob_max) &
-        (filtered_df["age"] >= age_range[0]) &
-        (filtered_df["age"] <= age_range[1])
-    ]
-
-    if filtered_df.empty:
-        st.warning("No members match the selected filters.")
-        return
-
-    # === Prepare Report Data ===
-    report_data = []
-
-    for _, row in filtered_df.iterrows():
-        name = row.get("name", "N/A")
-        dob = pd.to_datetime(row.get("dob", None)).date() if row.get("dob") else "Unknown"
-        residence = row.get("residence", "Unknown")
-
-        # Safely load vaccines JSON from DB
-        try:
-            vaccines = json.loads(row["vaccines"] or "{}")
-        except (json.JSONDecodeError, TypeError):
-            st.warning(f"⚠️ Skipping {name} due to invalid vaccine data.")
-            vaccines = {}
-
-        # Extract completed vaccines
-        completed = [key.split(" - ")[0] for key, val in vaccines.items() if str(val).lower() in ("true", "1", "yes")]
-        unique_completed = sorted(set(completed))
-
-        # Append row to report
-        report_data.append({
-            "Name": name,
-            "Date of Birth": str(dob),
-            "Residence": residence,
-            "Completed Vaccines": ", ".join(unique_completed) if unique_completed else "None"
-        })
-
-    # Convert to DataFrame
-    report_df = pd.DataFrame(report_data)
-    st.dataframe(report_df)
-
-    # === CSV Export ===
-    csv = report_df.to_csv(index=False).encode('utf-8')
-    st.download_button("📥 Download CSV", data=csv, file_name="completed_vaccines_report.csv", mime='text/csv')
+    # Display all info like in View Members
+    st.subheader("👶 Full Child Record")
+    st.write("**Raw Data:**")
+    st.json(dict(child))
 
     # === PDF Export ===
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
-    pdf.cell(190, 10, txt="Completed Vaccines Report", ln=True, align='C')
+    pdf.cell(190, 10, txt="Child Vaccination Full Record", ln=True, align='C')
     pdf.ln(10)
 
-    for row in report_data:
-        line = f"{row['Name']} | DOB: {row['Date of Birth']} | Residence: {row['Residence']} | Completed: {row['Completed Vaccines']}"
-        wrapped_lines = textwrap.wrap(line, width=90)  # Wrap at 90 chars
+    # Include all fields
+    pdf.cell(0, 10, f"ID: {child['id']}", ln=True)
+    pdf.cell(0, 10, f"Name: {child['name']}", ln=True)
+    pdf.cell(0, 10, f"Date of Birth: {child['dob']}", ln=True)
+    pdf.cell(0, 10, f"Gender: {child['gender']}", ln=True)
+    pdf.cell(0, 10, f"Residence: {child['residence']}", ln=True)
+    pdf.cell(0, 10, f"Phone: {child['phone']}", ln=True)
+    pdf.ln(5)
 
-        for wrapped_line in wrapped_lines:
-            pdf.multi_cell(0, 10, wrapped_line, align='L')
+# Vaccine JSON
+    pdf.set_font("Arial", size=11)
+    pdf.cell(0, 10, "Vaccine Status:", ln=True)
 
-        pdf.ln(2)  # Add spacing between entries
+    try:
+        raw_vaccine_data = child["vaccines"]
+        if not raw_vaccine_data or raw_vaccine_data.strip() in ["", "null"]:
+            raise ValueError("Empty or null vaccine data")
 
+        vaccine_dict = json.loads(raw_vaccine_data)
+        
+        if isinstance(vaccine_dict, dict) and vaccine_dict:
+            for k, v in vaccine_dict.items():
+                status = "Completed" if str(v).lower() in ("true", "1", "yes") else "Not Completed"
+                pdf.multi_cell(0, 10, f"{status} {k}")
+        else:
+            pdf.cell(0, 10, "No vaccine records found.", ln=True)
+
+    except (json.JSONDecodeError, TypeError, ValueError) as e:
+        pdf.set_text_color(255, 0, 0)
+        pdf.cell(0, 10, "⚠️ Error parsing vaccine data.", ln=True)
+        pdf.set_text_color(0, 0, 0)
+
+
+    # Download
     buffer = BytesIO()
     pdf.output(buffer)
     buffer.seek(0)
 
-    st.download_button("📥 Download PDF", data=buffer.getvalue(), file_name="completed_vaccines_report.pdf", mime="application/pdf")
-# ============================
+    st.download_button(
+        "📥 Download Full PDF Report",
+        data=buffer.getvalue(),
+        file_name=f"{child['name'].replace(' ', '_')}_full_record.pdf",
+        mime="application/pdf"
+    )
+
 # Route Pages
 # ============================
 if menu == "🏠 Dashboard":
